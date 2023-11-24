@@ -4,9 +4,25 @@ import PySimpleGUI as sg
 
 sg.theme('DarkGrey5')
 
+
+class TaskFileHandler:
+    @staticmethod
+    def save_tasks(tasks):
+        with open('tasks.pkl', 'wb') as f:
+            pickle.dump(tasks, f)
+
+    @staticmethod
+    def load_tasks():
+        try:
+            with open('tasks.pkl', 'rb') as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            return []
+
+
 class ToDoList:
     def __init__(self):
-        self.tasks = []
+        self.tasks = TaskFileHandler.load_tasks()
 
     def add_task(self, task, due_date=None):
         task_info = {'task': task, 'due_date': due_date}
@@ -30,52 +46,60 @@ class ToDoList:
         return task_list
 
 
+class ToDoListApp:
+    def __init__(self, to_do_list):
+        self.to_do_list = to_do_list
+
+    def run(self):
+        layout = [
+            [sg.Text("To-Do List")],
+            [sg.Button("Add Task"), sg.Button("Remove Task"), sg.Button("Show Tasks")],
+            [sg.Listbox(values=self.to_do_list.show_tasks(), size=(40, 10), key="tasks")],
+            [sg.Button("Exit")]
+        ]
+
+        window = sg.Window("To-Do List", layout)
+
+        while True:
+            event, values = window.read()
+
+            if event == sg.WINDOW_CLOSED or event == "Exit":
+                TaskFileHandler.save_tasks(self.to_do_list.tasks)
+                print("Exiting the to-do list program. Goodbye!")
+                break
+            elif event == "Add Task":
+                self.add_task(window)
+            elif event == "Remove Task":
+                self.remove_task(window)
+            elif event == "Show Tasks":
+                sg.popup("\n".join(self.to_do_list.show_tasks()))
+
+        window.close()
+
+    def add_task(self, window):
+        new_task = sg.popup_get_text("Enter the task:")
+        due_date_str = sg.popup_get_text("Enter the due date (optional, format: YYYY-MM-DD):")
+        due_date = datetime.datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
+        self.to_do_list.add_task(new_task, due_date)
+        window["tasks"].update(values=self.to_do_list.show_tasks())
+
+    def remove_task(self, window):
+        index_to_remove = sg.popup_get_text("Enter the index of the task to remove:")
+        if index_to_remove.isdigit():
+            index_to_remove = int(index_to_remove)
+            if self.to_do_list.remove_task(index_to_remove):
+                window["tasks"].update(values=self.to_do_list.show_tasks())
+            else:
+                sg.popup_error(f"Invalid index or task not found.")
+        else:
+            sg.popup_error("Please enter a valid index.")
+
+
 def main():
     to_do_list = ToDoList()
+    app = ToDoListApp(to_do_list)
+    app.run()
 
-    try:
-        with open('tasks.pkl', 'rb') as f:
-            to_do_list.tasks = pickle.load(f)
-    except FileNotFoundError:
-        pass
-
-    layout = [
-        [sg.Text("To-Do List")],
-        [sg.Button("Add Task"), sg.Button("Remove Task"), sg.Button("Show Tasks")],
-        [sg.Listbox(values=to_do_list.show_tasks(), size=(40, 10), key="tasks")],
-        [sg.Button("Exit")]
-    ]
-
-    window = sg.Window("To-Do List", layout)
-
-    while True:
-        event, values = window.read()
-
-        if event == sg.WINDOW_CLOSED or event == "Exit":
-            with open('tasks.pkl', 'wb') as f:
-                pickle.dump(to_do_list.tasks, f)
-            print("Exiting the to-do list program. Goodbye!")
-            break
-        elif event == "Add Task":
-            new_task = sg.popup_get_text("Enter the task:")
-            due_date_str = sg.popup_get_text("Enter the due date (optional, format: YYYY-MM-DD):")
-            due_date = datetime.datetime.strptime(due_date_str, '%Y-%m-%d') if due_date_str else None
-            to_do_list.add_task(new_task, due_date)
-            window["tasks"].update(values=to_do_list.show_tasks())
-        elif event == "Remove Task":
-            index_to_remove = sg.popup_get_text("Enter the index of the task to remove:")
-            if index_to_remove.isdigit():
-                index_to_remove = int(index_to_remove)
-                if to_do_list.remove_task(index_to_remove):
-                    window["tasks"].update(values=to_do_list.show_tasks())
-                else:
-                    sg.popup_error(f"Invalid index or task not found.")
-            else:
-                sg.popup_error("Please enter a valid index.")
-        elif event == "Show Tasks":
-            sg.popup("\n".join(to_do_list.show_tasks()))
-
-    window.close()
 
 if __name__ == "__main__":
     main()
